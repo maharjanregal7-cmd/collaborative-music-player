@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { TextField, Grid, Typography, Button } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
@@ -9,16 +9,13 @@ const Homepage = () => {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const handlebuttonPressed = () => {
-    console.log(roomCode);
-    api
-      .post("/join-room/", { code: roomCode })
-      .then((response) => {
-        navigate(`/room/${roomCode}`);
-      })
-      .catch((error) => {
-        setError("Invalid Room Code");
-      });
+  const handleButtonPressed = async () => {
+    try {
+      await api.post("/join-room/", { code: roomCode });
+      navigate(`/room/${roomCode}`);
+    } catch {
+      setError("Invalid Room Code");
+    }
   };
 
   return (
@@ -53,7 +50,7 @@ const Homepage = () => {
         <Button
           fullWidth
           variant="contained"
-          onClick={handlebuttonPressed}
+          onClick={handleButtonPressed}
           color="primary"
         >
           Enter Room

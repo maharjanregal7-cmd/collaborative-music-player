@@ -7,11 +7,14 @@ class SpotifyToken (models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     refresh_token = models.CharField(max_length=150)
     access_token = models.CharField(max_length=150)
-    expires_in = models.IntegerField()
+    expires_in = models.DateTimeField()
     token_type = models.CharField(max_length=50)
     
 class Vote(models.Model):
-    user = models.CharField(max_length=50, unique=True)
-    song_id = models.CharField(max_length=50, unique=True)
+    user = models.CharField(max_length=50)
+    song_id = models.CharField(max_length=50)
     created_at = models.DateTimeField(auto_now_add=True)
     room = models.ForeignKey(Room, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = [['user', 'room']]

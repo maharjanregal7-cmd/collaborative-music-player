@@ -1,3 +1,5 @@
-CLIENT_ID = ""
-CLIENT_SECRET = ""
-REDIRECT_URI = ""
+import os
+
+CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID", "")
+CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET", "")
+REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "")

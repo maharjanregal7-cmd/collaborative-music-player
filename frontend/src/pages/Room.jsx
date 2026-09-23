@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Grid, Button, Typography } from "@mui/material";
 import { useNavigate, useParams } from "react-router-dom";
 
 import CreateRoomPage from "./CreateRoomPage";
-import MusicPlayer from "./MusicPlayer";
+import MusicPlayer from "../components/MusicPlayer";
+import api from "../services/api";
 
 const Room = ({ leaveRoomCallback = () => {} }) => {
   const navigate = useNavigate();
@@ -13,7 +14,6 @@ const Room = ({ leaveRoomCallback = () => {} }) => {
   const [guestCanPause, setGuestCanPause] = useState(false);
   const [isHost, setIsHost] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [spotifyAuthenticated, setSpotifyAuthenticated] = useState(false);
   const [song, setSong] = useState({});
 
   const authenticateSpotify = useCallback(async () => {
@@ -21,88 +21,90 @@ const Room = ({ leaveRoomCallback = () => {} }) => {
       const response = await fetch("/spotify/is-authenticated");
       const data = await response.json();
 
-      setSpotifyAuthenticated(data.status);
-
-      if (!data.status) {
+      if (!data.is_authenticated) {
         const authResponse = await fetch("/spotify/get-auth-url");
         const authData = await authResponse.json();
 
         window.location.replace(authData.url);
       }
-    } catch (error) {
-      console.error("Spotify authentication failed:", error);
+    } catch {
+      console.error("Spotify authentication failed:");
     }
   }, []);
 
-  const getRoomDetails = useCallback(async () => {
+  const refreshRoomDetails = useCallback(async () => {
     try {
-      const response = await fetch(`/api/get-room?code=${roomCode}`);
+      const response = await api.get("/get-room/", {
+        params: { code: roomCode },
+      });
 
-      if (!response.ok) {
-        leaveRoomCallback();
-        navigate("/");
-        return;
-      }
-
-      const data = await response.json();
-
-      setVotesToSkip(data.votes_to_skip);
-      setGuestCanPause(data.guest_can_pause);
-      setIsHost(data.is_host);
-
-      if (data.is_host) {
-        authenticateSpotify();
-      }
+      setVotesToSkip(response.data.votes_to_skip);
+      setGuestCanPause(response.data.guest_can_pause);
+      setIsHost(response.data.is_host);
     } catch (error) {
       console.error("Error fetching room details:", error);
     }
-  }, [roomCode, navigate, leaveRoomCallback, authenticateSpotify]);
-
-  const getCurrentSong = useCallback(async () => {
-    try {
-      const response = await fetch("/spotify/current-song");
-
-      if (!response.ok) {
-        setSong({});
-        return;
-      }
-
-      const data = await response.json();
-      setSong(data);
-    } catch (error) {
-      console.error("Error fetching current song:", error);
-    }
-  }, []);
+  }, [roomCode]);
 
   const leaveButtonPressed = async () => {
     try {
-      await fetch("/api/leave-room", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
+      await api.post("/leave-room/");
       leaveRoomCallback();
       navigate("/");
-    } catch (error) {
-      console.error("Error leaving room:", error);
+    } catch {
+      console.error("Error leaving room:");
     }
   };
 
   useEffect(() => {
-    getRoomDetails();
-  }, [getRoomDetails]);
+    let active = true;
+
+    api
+      .get("/get-room/", { params: { code: roomCode } })
+      .then((response) => {
+        if (!active) return;
+
+        setVotesToSkip(response.data.votes_to_skip);
+        setGuestCanPause(response.data.guest_can_pause);
+        setIsHost(response.data.is_host);
+
+        if (response.data.is_host) {
+          authenticateSpotify();
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        leaveRoomCallback();
+        navigate("/");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [roomCode, navigate, leaveRoomCallback, authenticateSpotify]);
 
   useEffect(() => {
-    getCurrentSong();
+    let active = true;
 
-    const interval = setInterval(() => {
-      getCurrentSong();
-    }, 1000);
+    const loadSong = async () => {
+      try {
+        const response = await fetch("/spotify/current-song");
+        if (!active) return;
+        setSong(response.ok ? await response.json() : {});
+      } catch {
+        if (active) setSong({});
+      }
+    };
 
-    return () => clearInterval(interval);
-  }, [getCurrentSong]);
+    loadSong();
+
+    const interval = setInterval(loadSong, 1000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   if (showSettings) {
     return (
@@ -110,10 +112,10 @@ const Room = ({ leaveRoomCallback = () => {} }) => {
         <Grid size={12} textAlign="center">
           <CreateRoomPage
             update={true}
-            votesToSkip={votesToSkip}
-            guestCanPause={guestCanPause}
+            votesToSkipDefault={votesToSkip}
+            guestCanPauseDefault={guestCanPause}
             roomCode={roomCode}
-            updateCallback={getRoomDetails}
+            updateCallback={refreshRoomDetails}
           />
         </Grid>
 
